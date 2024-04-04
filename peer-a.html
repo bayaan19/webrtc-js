@@ -1,0 +1,34 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, user-scalable=yes, initial-scale=1, maximum-scale=1">
+    <title>WebRTC - Peer A</Source>
+    </title>
+</head>
+
+<body>
+    <div style="align-items: center; text-align: center;">
+        <div>
+            <h1>WebRTC - Peer A - Video Source</h1>
+        </div>
+        <div>
+            <button id="offer-button" disabled>Offer</button>
+            <button id="answer-button" disabled>Answer</button>
+            <button id="stop-button" disabled>Disconnect</button>
+        </div>
+        <div>
+            <label for="local-sdp">Peer A SDP&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;</label>
+            <label for="remote-sdp">&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;Peer B SDP</label>
+            <div>
+                <textarea id="local-sdp" name="local-sdp" cols="40" rows="10" disabled></textarea>
+                <textarea id="remote-sdp" name="remote-sdp" cols="40" rows="10" disabled></textarea>
+            </div>
+        </div>
+    </div>
+    <script src="peer-a.js"></script>
+</body>
+
+</html>

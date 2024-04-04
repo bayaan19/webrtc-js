@@ -1,0 +1,37 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, user-scalable=yes, initial-scale=1, maximum-scale=1">
+    <title>WebRTC - Peer B</title>
+</head>
+
+<body>
+    <div style="align-items: center; text-align: center;">
+        <div>
+            <h1>WebRTC - Peer B - Video Viewer</h1>
+        </div>
+        <div>
+            <video id="remote-video" width="320" height="240" controls autoplay playsinline>Your browser doesn't support
+                HTML5 video.</video>
+        </div>
+        <div>
+            <button id="accept-button" disabled>Accept</button>
+            <button id="message-button" disabled>Message</button>
+            <button id="stop-button" disabled>Disconnect</button>
+        </div>
+        <div>
+            <label for="remote-sdp">Peer A SDP&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;</label>
+            <label for="local-sdp">&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;Peer B SDP</label>
+            <div>
+                <textarea id="remote-sdp" name="remote-sdp" cols="40" rows="10" disabled></textarea>
+                <textarea id="local-sdp" name="local-sdp" cols="40" rows="10" disabled></textarea>
+            </div>
+        </div>
+    </div>
+    <script src="peer-b.js"></script>
+</body>
+
+</html>
