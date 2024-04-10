@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, user-scalable=yes, initial-scale=1, maximum-scale=1">
+    <title>WebRTC - Peer B</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@exampledev/new.css@1/new.min.css">
+    <link rel="stylesheet" href="https://fonts.xz.style/serve/inter.css">
+</head>
+
+<body>
+    <div style="align-items: center; text-align: center;">
+        <h1>WebRTC - Peer B - Video Viewer</h1>
+        <div>
+            <video id="remote-video-01" width="320" height="240" controls autoplay playsinline>Your browser doesn't
+                support HTML5 video.</video>
+            <video id="remote-video-02" width="320" height="240" controls autoplay playsinline>Your browser doesn't
+                support HTML5 video.</video>
+        </div>
+        <div>
+            <button id="request-button" disabled>Request Videos</button>
+            <button id="next-button" disabled>Next Videos</button>
+            <button id="stop-button" disabled>Stop Videos</button>
+        </div>
+        <div id="events">
+            <div>Request for video.</div>
+        </div>
+    </div>
+    <script src="script/main.js"></script>
+</body>
+
+</html>
