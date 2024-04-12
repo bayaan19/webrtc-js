@@ -17,109 +17,187 @@ const webSocket = new WebSocket('ws://localhost:8080/websocket-webrtc');
 let configuration;
 // Map of peer connections.
 let mapOfPeerConnections = new Map();
-
-
-webSocket.onopen = () => {
-    console.log('-- WebSocket connection established.');
-};
-
-webSocket.onmessage = (event) => {
-    console.log('-- Message received from WebSocket:', event.data);
-    const message = JSON.parse(event.data);
-
-    switch (message.type) {
-        case 'CONFIG':
-            console.log(`-- Configuration received from server with payload ${message.payload}.`);
-
-            // RTCConfiguration configuration received from server.
-            configuration = JSON.parse(message.payload);
-
-            break;
-        case 'REQUEST':
-            console.log(`-- Request received from ${message.from} with payload ${message.payload}.`);
-
-            // Prepare media tracks from RTSP URLs.
-            let stream;
-            try {
-                let activeRtspUrls = getActiveUrls1(message.payload.split(','));
-                stream = getMediaStream1(activeRtspUrls);
-
-                // Send response to server with get-at-able RTSP URLs.
-                webSocket.send(JSON.stringify({ to: message.from, type: 'RESPONSE', payload: activeRtspUrls.join(',') }));
-            } catch (error) {
-                console.error('-- Failed to get media stream:', error);
-            }
-
-            // Create peer connection.
-            try {
-                const remotePeerId = message.from;
-                const peerConnection = new WebRTCPeerConnection(configuration, remotePeerId, stream);
-                mapOfPeerConnections.set(remotePeerId, peerConnection);
-            } catch (error) {
-                console.error('-- Failed to create peer connection:', error);
-            };
-
-            break;
-        case 'RESPONSE':
-            console.log(`-- Response received from ${message.from} with payload ${message.payload}.`);
-
-            // Create peer connection.
-            try {
-                const remotePeerId = message.from;
-                const peerConnection = new WebRTCPeerConnection(configuration, remotePeerId);
-                mapOfPeerConnections.set(remotePeerId, peerConnection);
-
-                // Enable stop button.
-                stopButton.disabled = false;
-            } catch (error) {
-                console.error('-- Failed to create peer connection:', error);
-            }
-
-            break;
-        case 'OFFER':
-        case 'ANSWER':
-            console.log(`-- Offer/Answer received from ${message.from} with payload ${message.payload}.`);
-
-            // Set remote description.
-            try {
-                const remotePeerId = message.from;
-                const peerConnection = mapOfPeerConnections.get(remotePeerId);
-                peerConnection.setRemoteDescription(message.payload);
-            } catch (error) {
-                console.error('-- Failed to set remote description:', error);
-            }
-
-            break;
-        case 'CANDIDATE':
-            console.log(`-- Candidate received from ${message.from} with payload ${message.payload}.`);
-
-            // Add ICE candidate.
-            try {
-                const remotePeerId = message.from;
-                const peerConnection = mapOfPeerConnections.get(remotePeerId);
-                peerConnection.addIceCandidate(message.payload);
-            } catch (error) {
-                console.error('-- Failed to add ICE candidate:', error);
-            }
-
-            break;
-        default:
-            console.error(`-- Unknown message type ${message.type} from ${message.from} with payload ${message.payload}.`);
-            break;
-    }
-};
-
-webSocket.onclose = () => {
-    console.log('-- WebSocket connection closed.');
-
-    // Close all peer connections.
-    mapOfPeerConnections.forEach((peerConnection) => peerConnection.close());
-};
+// Media stream from RTSP URLs.
+let stream;
 
 webSocket.onerror = (error) => {
     console.error('-- WebSocket error:', error);
     alert('Unable to connect to server. Please try again later.');
 };
+
+webSocket.onopen = () => {
+    console.log('-- WebSocket connection established.');
+    if (registerButton) registerButton.disabled = false;
+    if (requestButton) requestButton.disabled = false;
+};
+
+webSocket.onmessage = (event) => {
+    console.debug('-- Message received from WebSocket:', event.data);
+    const message = JSON.parse(event.data);
+
+    switch (message.type) {
+        case 'CONFIG':
+            handleConfigMessage(message);
+            break;
+        case 'REQUEST':
+            handleRequestMessage(message);
+            break;
+        case 'RESPONSE':
+            handleResponseMessage(message);
+            break;
+        case 'OFFER':
+            handleOfferMessage(message);
+            break;
+        case 'ANSWER':
+            handleAnswerMessage(message);
+            break;
+        case 'CANDIDATE':
+            handleCandidateMessage(message);
+            break;
+        case 'ERROR':
+            handleErrorMessage(message);
+            break;
+        default:
+            handleUnknownMessage(message);
+            break;
+    }
+};
+
+function handleConfigMessage(message) {
+    // RTCConfiguration configuration received from server.
+    configuration = JSON.parse(message.payload);
+
+    console.log(`-- Configuration received from server:`, configuration);
+}
+
+function handleRequestMessage(message) {
+    console.log(`-- Request received from ${message.from} with payload:`, message.payload);
+
+    // Get available RTSP URLs.
+    getAvailableUrls(message.payload.split(',')).then((urls) => {
+        console.log('-- Active RTSP URLs:', urls);
+        // Prepare media tracks from RTSP URLs.
+        getMediaStream(urls).then((stream) => {
+            // Create peer connection.
+            try {
+                const remotePeerId = message.from;
+                const peerConnection = new WebRTCPeerConnection(configuration, remotePeerId, stream);
+
+                if (peerConnection) {
+                    // Firstly, send response to server with get-at-able RTSP URLs.
+                    try {
+                        webSocket.send(JSON.stringify({ to: message.from, type: 'RESPONSE', payload: urls.join(',') }));
+                    } catch (error) {
+                        console.error('-- Failed to send response:', error);
+                    }
+
+                    // Secondly, Create offer.
+                    peerConnection.createOffer();
+
+                    // Store peer connection.
+                    mapOfPeerConnections.set(remotePeerId, peerConnection);
+                }
+
+                // Enable stop button.
+                if (stopButton) stopButton.disabled = false;
+            } catch (error) {
+                console.error('-- Failed to create peer connection:', error);
+            };
+        }).onerror = (error) => {
+            console.error('-- Failed to get media stream(s):', error);
+        };
+    }).onerror = (error) => {
+        console.error('-- Failed to available RTSP URL(s):', error);
+    };
+}
+
+function handleResponseMessage(message) {
+    console.log(`-- Response received from ${message.from} with payload:`, message.payload);
+
+    // Create peer connection.
+    try {
+        const remotePeerId = message.from;
+        const peerConnection = new WebRTCPeerConnection(configuration, remotePeerId);
+
+        // Store peer connection.
+        if (peerConnection) {
+            mapOfPeerConnections.set(remotePeerId, peerConnection);
+        }
+
+        // Enable stop button.
+        if (stopButton) stopButton.disabled = false;
+    } catch (error) {
+        console.error('-- Failed to create peer connection:', error);
+    }
+}
+
+function handleOfferMessage(message) {
+    console.log(`-- Offer received from ${message.from} with payload ${message.payload.substring(0, 200)}...`);
+
+    // Set remote description.
+    try {
+        const remotePeerId = message.from;
+        const peerConnection = mapOfPeerConnections.get(remotePeerId);
+
+        if (peerConnection) {
+            peerConnection.setRemoteDescription(message.payload);
+
+            // Create answer.
+            peerConnection.createAnswer().onerror = (error) => {
+                console.error('-- Failed to create answer:', error);
+            };
+        } else {
+            console.error(`-- Peer connection for ${remotePeerId} not found to accept offer.`);
+        }
+    } catch (error) {
+        console.error('-- Failed to set remote description:', error);
+    }
+}
+
+function handleAnswerMessage(message) {
+    console.log(`-- Answer received from ${message.from} with payload ${message.payload.substring(0, 200)}...`);
+
+    // Set remote description.
+    try {
+        const remotePeerId = message.from;
+        const peerConnection = mapOfPeerConnections.get(remotePeerId);
+
+        if (peerConnection) {
+            peerConnection.setRemoteDescription(message.payload);
+        } else {
+            console.error(`-- Peer connection for ${remotePeerId} not found to accept answer.`);
+        }
+    } catch (error) {
+        console.error('-- Failed to set remote description:', error);
+    }
+}
+
+function handleCandidateMessage(message) {
+    console.log(`-- Candidate received from ${message.from} with payload ${message.payload}.`);
+
+    // Add ICE candidate.
+    try {
+        const remotePeerId = message.from;
+        const peerConnection = mapOfPeerConnections.get(remotePeerId);
+
+        if (peerConnection) {
+            peerConnection.addIceCandidate(message.payload);
+        } else {
+            console.error(`-- Peer connection for ${remotePeerId} not found to add ICE candidate.`);
+        }
+    } catch (error) {
+        console.error('-- Failed to add ICE candidate:', error);
+    }
+}
+
+function handleErrorMessage(message) {
+    console.error(`-- Error message received from ${message.from == null ? 'server' : message.from} with payload ${message.payload}.`);
+    alert(message.payload);
+}
+
+function handleUnknownMessage(message) {
+    console.error(`-- Unknown message type ${message.type} from ${message.from} with payload ${message.payload}.`);
+}
 
 class WebRTCPeerConnection {
     constructor(configuration, remotePeerId, stream) {
@@ -158,7 +236,7 @@ class WebRTCPeerConnection {
                 console.log(`-- There are no more ICE candidates coming during this negotiation.`);
             } else {
                 console.log(`-- Sending this ICE candidate (${event.candidate.candidate}) to other peer ${this.remotePeerId}.`);
-                webSocket.send(JSON.stringify({ to: this.remotePeerId, type: 'CANDIDATE', payload: event.candidate }));
+                webSocket.send(JSON.stringify({ to: this.remotePeerId, type: 'CANDIDATE', payload: JSON.stringify(event.candidate) }));
             }
         };
         this.peerConnection.onicecandidateerror = (event) => {
@@ -173,7 +251,7 @@ class WebRTCPeerConnection {
 
     async addIceCandidate(candidate) {
         try {
-            await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            await this.peerConnection.addIceCandidate(JSON.parse(candidate));
             console.log("-- ICE Candidate added.");
         } catch (error) {
             console.error("-- Failed to add ICE Candidate:", error);
@@ -182,8 +260,9 @@ class WebRTCPeerConnection {
 
     async setRemoteDescription(offer) {
         try {
-            await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-            console.log("-- Offer Accepted.");
+            const description = JSON.parse(offer);
+            await this.peerConnection.setRemoteDescription(description);
+            console.log(`-- ${description.type} Accepted.`);
         } catch (error) {
             console.error("-- Failed to set remote description:", error);
         }
@@ -194,7 +273,7 @@ class WebRTCPeerConnection {
             const offer = await this.peerConnection.createOffer();
             await this.peerConnection.setLocalDescription(offer);
             console.log(`-- Sending offer to remote peer ${this.remotePeerId}.`);
-            webSocket.send(JSON.stringify({ to: this.remotePeerId, type: 'OFFER', payload: offer }));
+            webSocket.send(JSON.stringify({ to: this.remotePeerId, type: 'OFFER', payload: JSON.stringify(offer) }));
         } catch (error) {
             console.error("-- Failed to create or send offer:", error);
         }
@@ -205,7 +284,7 @@ class WebRTCPeerConnection {
             const answer = await this.peerConnection.createAnswer();
             await this.peerConnection.setLocalDescription(answer);
             console.log(`-- Sending answer to remote peer ${this.remotePeerId}.`);
-            webSocket.send(JSON.stringify({ to: this.remotePeerId, type: 'ANSWER', payload: answer }));
+            webSocket.send(JSON.stringify({ to: this.remotePeerId, type: 'ANSWER', payload: JSON.stringify(answer) }));
         } catch (error) {
             console.error("-- Failed to create or send answer:", error);
         }
@@ -221,89 +300,63 @@ class WebRTCPeerConnection {
     }
 }
 
-function getRtspUrls() {
+async function getRtspUrls() {
     // Your code here to return selected RTSP URLs in following format:
     // [{ id: numeric-proxy-id, urls: [rtsp-url-1, rtsp-url-2, ...] }, ...]
     return [{ id: 12345, urls: ["rtsp://admin@password:192.168.1.101:/media/main", "rtsp://admin@password:192.168.1.102:/media/main"] }];
 }
-
-function getActiveUrls1(urls) {
-    // For testing purposes, return all URLs as active
-    return urls;
+async function getAvailableUrls(urls) {
+    // For testing purposes, return 1st URLs as active
+    return [urls[0]];
 }
-function getActiveUrls(urls) {
-    // Your code here to filter and return active RTSP URLs
-    return urls.filter(url => isUrlActive(url));
-}
-
-function isUrlActive(url) {
-    // Your code here to check if the RTSP URL is active
-    // You can use any method to check the availability of the URL, such as making a request to it
-    // Return true if the URL is active, false otherwise
-    // Example implementation using fetch:
-    return fetch(url)
-        .then(response => response.ok)
-        .catch(() => false);
-}
-
-async function getMediaStream1(urls) {
+async function getMediaStream(urls) {
+    // For testing purposes, returning integreted camera stream
     return await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
 }
-function getMediaStream(urls) {
-    // Your code here to create and return a MediaStream object from the active RTSP URLs
-    // You can use any library or method to handle the RTSP streaming and create the MediaStream object
-    // Example implementation using a library like RTSP.js:
-    const stream = new MediaStream();
-    urls.forEach(url => {
-        const player = new RTSP.Player(url);
-        player.play();
-        const track = player.getTrack();
-        stream.addTrack(track);
-    });
-    return stream;
-}
-
-
 
 
 window.onload = async () => {
-    requestButton.disabled = false;
+    console.log('-- Ready to start.');
 }
+if (registerButton) {
+    registerButton.onclick = async () => {
+        try {
+            registerButton.disabled = true;
 
-registerButton.onclick = async () => {
-    try {
-        registerButton.disabled = true;
+            // Send registration request to server.
+            webSocket.send(JSON.stringify({ type: 'REGISTER', payload: '12345' }));
+        } catch (reason) {
+            alert(reason);
+        }
+    };
+}
+if (requestButton) {
+    requestButton.onclick = async () => {
+        try {
+            requestButton.disabled = true;
 
-        // Send registration request to server.
-        webSocket.send(JSON.stringify({ type: 'REGISTER', payload: '12345'}));
-    } catch (reason) {
-        alert(reason);
-    }
-};
+            // Get RTSP URLs.
+            let rtspUrls = await getRtspUrls();
 
-requestButton.onclick = async () => {
-    try {
-        requestButton.disabled = true;
+            // Send request to server with RTSP URLs.
+            rtspUrls.forEach((elements) => {
+                webSocket.send(JSON.stringify({ to: elements.id, type: 'REQUEST', payload: elements.urls.join(',') }));
+            });
+        } catch (reason) {
+            alert(reason);
+        }
+    };
+}
+if (stopButton) {
+    stopButton.onclick = async () => {
+        try {
+            stopButton.disabled = true;
 
-        // Get RTSP URLs.
-        let rtspUrls = getRtspUrls();
+            // Close all peer connections.
+            mapOfPeerConnections.forEach((peerConnection) => peerConnection.close());
 
-        // Send request to server with RTSP URLs.
-        rtspUrls.forEach((elements) => {
-            webSocket.send(JSON.stringify({ to: elements.id, type: 'REQUEST', payload: elements.urls.join(',') }));
-        });
-    } catch (reason) {
-        alert(reason);
-    }
-};
-
-stopButton.onclick = async () => {
-    try {
-        stopButton.disabled = true;
-
-        // Close all peer connections.
-        mapOfPeerConnections.forEach((peerConnection) => peerConnection.close());
-    } catch (reason) {
-        alert(reason);
-    }
+        } catch (reason) {
+            alert(reason);
+        }
+    };
 }
