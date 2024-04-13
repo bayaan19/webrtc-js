@@ -78,9 +78,13 @@ function handleRequestMessage(message) {
         console.log('-- Active RTSP URLs:', urls);
         // Prepare media tracks from RTSP URLs.
         getMediaStream(urls).then((stream) => {
+            const remotePeerId = message.from;
+
+            // Store peer URLs.
+            mapOfPeerUrls.set(remotePeerId, urls);
+
             // Create peer connection.
             try {
-                const remotePeerId = message.from;
                 const peerConnection = new WebRTCPeerConnection(configuration, remotePeerId, stream);
 
                 if (peerConnection) {
@@ -96,7 +100,6 @@ function handleRequestMessage(message) {
 
                     // Store peer connection.
                     mapOfPeerConnections.set(remotePeerId, peerConnection);
-                    mapOfPeerUrls.set(remotePeerId, urls);
                 }
 
                 // Enable stop button.
