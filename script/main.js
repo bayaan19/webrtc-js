@@ -17,8 +17,8 @@ const webSocket = new WebSocket('ws://localhost:8080/websocket-webrtc');
 let configuration;
 // Map of peer connections.
 let mapOfPeerConnections = new Map();
-// Media stream from RTSP URLs.
-let stream;
+// Map of peer URLs.
+let mapOfPeerUrls = new Map();
 
 webSocket.onerror = (error) => {
     console.error('-- WebSocket error:', error);
@@ -96,6 +96,7 @@ function handleRequestMessage(message) {
 
                     // Store peer connection.
                     mapOfPeerConnections.set(remotePeerId, peerConnection);
+                    mapOfPeerUrls.set(remotePeerId, urls);
                 }
 
                 // Enable stop button.
